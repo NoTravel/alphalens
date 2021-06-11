@@ -624,6 +624,8 @@ def get_clean_factor(factor,
 
         merged_data['group'] = groupby.astype('category')
 
+    merged_data.replace([np.inf, -np.inf], np.nan, inplace = True)
+    print('replace inf with Nas')
     merged_data = merged_data.dropna()
 
     fwdret_amount = float(len(merged_data.index))

@@ -18,7 +18,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 
-from . import plotting
+from pandas._libs.tslibs import Period
+
+from . import plotting, plotting_new
 from . import performance as perf
 from . import utils
 
@@ -231,7 +233,7 @@ def create_returns_tear_sheet(
         utils.rate_of_return,
         axis=0,
         base_period=mean_quant_ret_bydate.columns[0],
-    )
+    )# 5天收益率折算成一天的平均收益率
 
     compstd_quant_daily = std_quant_daily.apply(
         utils.std_conversion, axis=0, base_period=std_quant_daily.columns[0]
@@ -287,6 +289,11 @@ def create_returns_tear_sheet(
 
         plotting.plot_cumulative_returns(
             factor_returns["1D"], period="1D", title=title, ax=gf.next_row()
+        )
+
+        # long top 1/10 and short bottom 1/10
+        plotting_new.plot_cumulative_top_minus_bottom(
+            mean_ret_spread_quant["1D"], period="1D", ax=gf.next_row()
         )
 
         plotting.plot_cumulative_returns_by_quantile(
@@ -431,7 +438,7 @@ def create_turnover_tear_sheet(factor_data, turnover_periods=None):
     if turnover_periods is None:
         input_periods = utils.get_forward_returns_columns(
             factor_data.columns, require_exact_day_multiple=True,
-        ).get_values()
+        ).to_numpy()
         turnover_periods = utils.timedelta_strings_to_integers(input_periods)
     else:
         turnover_periods = utils.timedelta_strings_to_integers(
