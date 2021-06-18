@@ -737,3 +737,125 @@ def create_event_study_tear_sheet(factor_data,
 
     plt.show()
     gf.close()
+
+
+
+@plotting.customize
+def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_neutral=False):
+    """
+    Creates a full tear sheet for analysis and evaluating single
+    return predicting (alpha) factor.
+
+    Parameters
+    ----------
+    factor_data : pd.DataFrame - MultiIndex
+        A MultiIndex DataFrame indexed by date (level 0) and asset (level 1),
+        containing the values for a single alpha factor, forward returns for
+        each period, the factor quantile/bin that factor value belongs to, and
+        (optionally) the group the asset belongs to.
+        - See full explanation in utils.get_clean_factor_and_forward_returns
+    long_short : bool
+        Should this computation happen on a long short portfolio?
+        - See tears.create_returns_tear_sheet for details on how this flag
+        affects returns analysis
+    group_neutral : bool
+        Should this computation happen on a group neutral portfolio?
+        - See tears.create_returns_tear_sheet for details on how this flag
+        affects returns analysis
+        - See tears.create_information_tear_sheet for details on how this
+        flag affects information analysis
+    by_group : bool
+        If True, display graphs separately for each group.
+    """
+
+    alpha1 = perf.factor_information_coefficient(factor_data, group_neutral)
+
+    plotting.plot_regression_return_table(alpha1)
+
+    alpha2 = perf.factor_returns(
+        factor_data, long_short, group_neutral
+    )
+
+    vertical_sections = 7
+    gf = GridFigure(rows=vertical_sections, cols=1)
+
+    title = ("Alpha Portfolio Return(alpha2) " + " (1D Period)")
+
+    plotting.plot_cumulative_returns(
+        alpha2["1D"], period="1D", title=title, ax=gf.next_row()
+    )
+
+    mean_quant_ret_bydate, std_quant_daily = perf.mean_return_by_quantile(
+        factor_data,
+        by_date=True,
+        by_group=False,
+        demeaned=long_short,
+        group_adjust=group_neutral,
+    )
+
+    mean_quant_rateret_bydate = mean_quant_ret_bydate.apply(
+        utils.rate_of_return,
+        axis=0,
+        base_period=mean_quant_ret_bydate.columns[0],
+    )# 5天收益率折算成一天的平均收益率
+
+
+    compstd_quant_daily = std_quant_daily.apply(
+        utils.std_conversion, axis=0, base_period=std_quant_daily.columns[0]
+    )
+
+    mean_ret_spread_quant, std_spread_quant = perf.compute_mean_returns_spread(
+        mean_quant_rateret_bydate,
+        factor_data["factor_quantile"].max(),
+        factor_data["factor_quantile"].min(),
+        std_err=compstd_quant_daily,
+    )
+    
+    # long top 1/10 and short bottom 1/10
+    plotting.plot_cumulative_top_minus_bottom(
+        mean_ret_spread_quant["1D"], period="1D", ax=gf.next_row()
+    )
+
+    alpha3_positive = perf.factor_returns_positive(factor_data, df_thisIndex)
+    alpha3_negative = perf.factor_returns_positive(factor_data, df_thisIndex, positive = False)
+
+    title = ("Performance Against Index(alpha3) positive" + " (1D Period)")
+
+    plotting.plot_cumulative_returns(
+        alpha3_positive["1D"], period="1D", title=title, ax=gf.next_row()
+    )
+
+    title = ("Performance Against Index(alpha3) negative" + " (1D Period)")
+
+    plotting.plot_cumulative_returns(
+        alpha3_negative["1D"], period="1D", title=title, ax=gf.next_row()
+    )
+
+    rankic = perf.factor_information_coefficient(factor_data, group_neutral)
+
+    plotting.plot_information_table(rankic)
+
+    plotting.plot_cumulative_returns_by_quantile(
+        mean_quant_ret_bydate["1D"], period="1D", ax=gf.next_row()
+    )
+
+    l_turnover = [perf.alpha_turnover(factor_data, p) for p in [1, 2, 5, 10, 20]]
+    plotting.plot_simple([1,2,5,10,20], l_turnover, ax = gf.next_row(), title= "Alpha Turnover")
+    
+    l_icdecay = [perf.alpha_icdecay(factor_data, p) for p in [1, 2, 5, 10, 20]]
+    plotting.plot_simple([1,2,5,10,20], l_icdecay, ax = gf.next_row(), title= "Alpha IC Decay")
+
+    
+    trading_calendar = factor_data.index.levels[0].freq
+    if trading_calendar is None:
+        trading_calendar = pd.tseries.offsets.BDay()
+        warnings.warn(
+            "'freq' not set in factor_data index: assuming business day",
+            UserWarning,
+        )
+
+    dict_perf = perf.alpha_performance(alpha2['1D'])
+    plotting.plot_alpha_performance_table(dict_perf)
+
+    plt.show()
+    gf.close()

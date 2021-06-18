@@ -73,6 +73,38 @@ def factor_information_coefficient(factor_data,
 
     return ic
 
+def factor_regression_return(factor_data):
+    """
+    Computes regression_return between factor values and N period 
+    forward returns for each period in the factor index.
+
+    Parameters
+    ----------
+    factor_data : pd.DataFrame - MultiIndex
+        A MultiIndex DataFrame indexed by date (level 0) and asset (level 1),
+        containing the values for a single alpha factor, forward returns for
+        each period, the factor quantile/bin that factor value belongs to, and
+        (optionally) the group the asset belongs to.
+        - See full explanation in utils.get_clean_factor_and_forward_returns
+    
+    Returns
+    -------
+    regression_return : pd.DataFrame
+        regression return between factor and
+        provided forward returns.
+    """
+
+    def src_regression_return(group):
+        f = group['factor']
+        _regression_return = group[utils.get_forward_returns_columns(factor_data.columns)] \
+            .apply(lambda x: OLS(x, add_constant(f)).fit().params[1])
+        return _regression_return
+
+    grouper = [factor_data.index.get_level_values('date')]
+    regression_return = factor_data.groupby(grouper).apply(src_regression_return)
+
+    return regression_return
+
 
 def mean_information_coefficient(factor_data,
                                  group_adjust=False,
@@ -254,6 +286,139 @@ def factor_returns(factor_data,
 
     return returns
 
+# 2.3 we also want to see the performance against an index.
+def factor_weights_positive(factor_data,
+                   demeaned=True,
+                   group_adjust=False,
+                   equal_weight=False,
+                   positive = True):
+    """
+    Computes asset weights when factor values are positive
+
+    Parameters
+    ----------
+    factor_data : pd.DataFrame - MultiIndex
+        A MultiIndex DataFrame indexed by date (level 0) and asset (level 1),
+        containing the values for a single alpha factor, forward returns for
+        each period, the factor quantile/bin that factor value belongs to, and
+        (optionally) the group the asset belongs to.
+        - See full explanation in utils.get_clean_factor_and_forward_returns
+    demeaned : bool
+        Should this computation happen on a long short portfolio? if True,
+        weights are computed by demeaning factor values and dividing by the sum
+        of their absolute value (achieving gross leverage of 1). The sum of
+        positive weights will be the same as the negative weights (absolute
+        value), suitable for a dollar neutral long-short portfolio
+    group_adjust : bool
+        Should this computation happen on a group neutral portfolio? If True,
+        compute group neutral weights: each group will weight the same and
+        if 'demeaned' is enabled the factor values demeaning will occur on the
+        group level.
+    equal_weight : bool, optional
+        if True the assets will be equal-weighted instead of factor-weighted
+        If demeaned is True then the factor universe will be split in two
+        equal sized groups, top assets with positive weights and bottom assets
+        with negative weights
+
+    Returns
+    -------
+    returns : pd.Series
+        Assets weighted by factor value.
+    """
+
+    def to_weights(group, _demeaned, _equal_weight, _positive):
+
+        if _equal_weight:
+            group = group.copy()
+
+            if _demeaned:
+                # top assets positive weights, bottom ones negative
+                group = group - group.median()
+
+            negative_mask = group < 0
+            group[negative_mask] = -1.0
+            positive_mask = group > 0
+            group[positive_mask] = 1.0
+
+            if _demeaned:
+                # positive weights must equal negative weights
+                if negative_mask.any():
+                    group[negative_mask] /= negative_mask.sum()
+                if positive_mask.any():
+                    group[positive_mask] /= positive_mask.sum()
+
+        elif _demeaned:
+            group = group - group.mean()
+
+        if _positive:
+            return group.apply(lambda x: max(x, 0)) / (2 * \
+                group.apply(lambda x: max(x, 0)).sum())
+        else:
+            return group.apply(lambda x: min(x, 0)) / (2 * \
+                group.apply(lambda x: min(x, 0)).sum())
+
+    grouper = [factor_data.index.get_level_values('date')]
+    if group_adjust:
+        grouper.append('group')
+
+    weights = factor_data.groupby(grouper)['factor'] \
+        .apply(to_weights, demeaned, equal_weight, positive)
+
+    if group_adjust:
+        weights = weights.groupby(level='date').apply(to_weights, False, False)
+
+    return weights
+
+def factor_returns_positive(factor_data,
+                   index_ret_benchmark,
+                   demeaned=True,
+                   group_adjust=False,
+                   equal_weight=False,
+                   by_asset=False,
+                   positive = True):
+    """
+    Computes period wise returns for portfolio weighted by factor
+    values when factor is larger than 0.
+
+    Parameters
+    ----------
+    factor_data : pd.DataFrame - MultiIndex
+        A MultiIndex DataFrame indexed by date (level 0) and asset (level 1),
+        containing the values for a single alpha factor, forward returns for
+        each period, the factor quantile/bin that factor value belongs to, and
+        (optionally) the group the asset belongs to.
+        - See full explanation in utils.get_clean_factor_and_forward_returns
+    demeaned : bool
+        Control how to build factor weights
+        -- see performance.factor_weights for a full explanation
+    group_adjust : bool
+        Control how to build factor weights
+        -- see performance.factor_weights for a full explanation
+    equal_weight : bool, optional
+        Control how to build factor weights
+        -- see performance.factor_weights for a full explanation
+    by_asset: bool, optional
+        If True, returns are reported separately for each esset.
+
+    Returns
+    -------
+    returns : pd.DataFrame
+        Period wise factor returns
+    """
+
+    weights = \
+        factor_weights_positive(factor_data, demeaned, group_adjust, equal_weight, positive=positive)
+
+    weighted_returns = \
+        factor_data[utils.get_forward_returns_columns(factor_data.columns)] \
+        .multiply(weights, axis=0)
+
+    if by_asset:
+        returns = weighted_returns
+    else:
+        returns = weighted_returns.groupby(level='date').sum() - 0.5 * index_ret_benchmark
+
+    return returns
 
 def factor_alpha_beta(factor_data,
                       returns=None,
@@ -1163,3 +1328,61 @@ def create_pyfolio_input(factor_data,
         benchmark_rets = None
 
     return returns, positions, benchmark_rets
+
+def alpha_turnover(factor_data, period):
+    l_turnover = []
+    l_dates = factor_data.index.levels[0]
+    l_dates_all = factor_data.index.get_level_values(0)
+    for i in range(len(l_dates)-period):
+        df_old = factor_data.loc[l_dates_all == l_dates[i],"factor"].reset_index().set_index('asset')
+        df_new = factor_data.loc[l_dates_all == l_dates[i+period],"factor"].reset_index().set_index('asset')
+        s_intersect = set(df_old.index.values) & set(df_new.index.values)
+        s_old = set(df_old.index.values) - set(df_new.index.values)
+        s_new = set(df_new.index.values) - set(df_old.index.values)
+        diff_old = df_old.loc[s_old,'factor'].abs().sum()
+        diff_new = df_new.loc[s_new,'factor'].abs().sum()
+        l_intersect = list(s_intersect)
+        diff_intersect = sum(abs(df_old.loc[l_intersect, 'factor'] - df_new.loc[l_intersect, 'factor']))
+        total_old = df_old['factor'].abs().sum()
+        l_turnover.append((diff_old + diff_new + diff_intersect)/total_old)
+        #print((diff_old + diff_new + diff_intersect)/total_old)
+    return(sum(l_turnover)/len(l_turnover))
+
+def alpha_icdecay(factor_data, period):
+    l_turnover = []
+    l_dates = factor_data.index.levels[0]
+    l_dates_all = factor_data.index.get_level_values(0)
+    for i in range(len(l_dates)-period):
+        df_old = factor_data.loc[l_dates_all == l_dates[i],"factor"].reset_index().set_index('asset')
+        df_new = factor_data.loc[l_dates_all == l_dates[i+period],"factor"].reset_index().set_index('asset')
+        s_intersect = set(df_old.index.values) & set(df_new.index.values)
+        l_intersect = list(s_intersect)
+        l_turnover.append(stats.spearmanr(df_old.loc[l_intersect, 'factor'], df_new.loc[l_intersect, 'factor'])[0])
+        #print((diff_old + diff_new + diff_intersect)/total_old)
+    return(sum(l_turnover)/len(l_turnover))
+
+def alpha_performance(alpha2_1D):
+    AnnRet = alpha2_1D.mean() * 252
+    totalAlpha = list(alpha2_1D.cumsum())
+    l_high = []
+    for i in range(len(totalAlpha)):
+        if i == 0:
+            l_high.append(totalAlpha[i])
+        else:
+            l_high.append(max(l_high[i-1], totalAlpha[i]))
+    l_diff = [totalAlpha[i] - l_high[i] for i in range(len(totalAlpha))]
+    j_maxDD = l_diff.index(min(l_diff))
+    MaxDD = totalAlpha[j_maxDD] - l_high[j_maxDD]
+
+    j = j_maxDD
+    while j < len(l_high) and l_high[j] == l_high[j_maxDD]:
+        j = j + 1
+    RcyDay = j - j_maxDD
+
+    IR = AnnRet / (alpha2_1D.std() * np.sqrt(252))
+
+    dict_perf = dict({'AnnRet': AnnRet,
+                      'MaxDD': MaxDD,
+                      'RcyDay': RcyDay,
+                      'IR': IR})
+    return dict_perf
