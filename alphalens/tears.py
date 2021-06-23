@@ -741,7 +741,8 @@ def create_event_study_tear_sheet(factor_data,
 
 
 @plotting.customize
-def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_neutral=False):
+def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",\
+    universe = None, long_short=True, group_neutral=False):
     """
     Creates a full tear sheet for analysis and evaluating single
     return predicting (alpha) factor.
@@ -767,6 +768,25 @@ def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_
     by_group : bool
         If True, display graphs separately for each group.
     """
+    df_thisIndex = index_ret.xs(s_benchmark, level = "asset")
+    df_thisIndex = df_thisIndex[df_thisIndex.index.isin(factor_data.index.unique(level='date'))]
+    num_quantiles = max(factor_data['factor_quantile'])
+    if universe is not None:
+        s_dir = "c:\\Users\\zhouyou\\Documents\\datas\\" + universe + "\\"
+        index_constituent = []
+        for i in range(len(factor_data.index.unique(level='date'))):
+            s_date = factor_data.index.unique(level='date')[i].__str__()[0:10]
+            index_constituent.extend([(pd.to_datetime(s_date),x) for x in pd.read_csv(s_dir + s_date + '.csv').iloc[:,0]])
+        factor_data = factor_data.loc[factor_data.index.isin(index_constituent)]
+        quantile_data = utils.quantize_factor(
+            factor_data,
+            num_quantiles,
+            None,
+            False,
+            True,
+            False
+        )
+        factor_data.loc[:,'factor_quantile'] = quantile_data
 
     alpha1 = perf.factor_information_coefficient(factor_data, group_neutral)
 
@@ -776,7 +796,7 @@ def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_
         factor_data, long_short, group_neutral
     )
 
-    vertical_sections = 7
+    vertical_sections = 10
     gf = GridFigure(rows=vertical_sections, cols=1)
 
     title = ("Alpha Portfolio Return(alpha2) " + " (1D Period)")
@@ -848,8 +868,9 @@ def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_
     dict_perf = perf.alpha_performance(alpha2['1D'])
     plotting.plot_alpha_performance_table(dict_perf)
 
-    alpha_index = mean_quant_ret_bydate.loc[mean_quant_ret_bydate.index.get_level_values(0) == 5,'1D'] - df_thisIndex['1D']
-    plotting.plot_cumulative_returns(alpha_index, period="1D")
-    
+    alpha_index = mean_quant_ret_bydate.loc[mean_quant_ret_bydate.index.get_level_values(0) == num_quantiles,'1D'] - df_thisIndex['1D']
+    title = ("First Quantile Average Performance Against Index" + " (1D Period)")
+    plotting.plot_cumulative_returns(alpha_index.xs(num_quantiles, level=0), period="1D", title = title, ax = gf.next_row())
+
     plt.show()
     gf.close()
