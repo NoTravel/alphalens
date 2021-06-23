@@ -20,7 +20,7 @@ import warnings
 
 from pandas._libs.tslibs import Period
 
-from . import plotting, plotting_new
+from . import plotting
 from . import performance as perf
 from . import utils
 
@@ -292,7 +292,7 @@ def create_returns_tear_sheet(
         )
 
         # long top 1/10 and short bottom 1/10
-        plotting_new.plot_cumulative_top_minus_bottom(
+        plotting.plot_cumulative_top_minus_bottom(
             mean_ret_spread_quant["1D"], period="1D", ax=gf.next_row()
         )
 
@@ -845,17 +845,11 @@ def zt_create_full_tear_sheet(factor_data, df_thisIndex, long_short=True, group_
     l_icdecay = [perf.alpha_icdecay(factor_data, p) for p in [1, 2, 5, 10, 20]]
     plotting.plot_simple([1,2,5,10,20], l_icdecay, ax = gf.next_row(), title= "Alpha IC Decay")
 
-    
-    trading_calendar = factor_data.index.levels[0].freq
-    if trading_calendar is None:
-        trading_calendar = pd.tseries.offsets.BDay()
-        warnings.warn(
-            "'freq' not set in factor_data index: assuming business day",
-            UserWarning,
-        )
-
     dict_perf = perf.alpha_performance(alpha2['1D'])
     plotting.plot_alpha_performance_table(dict_perf)
 
+    alpha_index = mean_quant_ret_bydate.loc[mean_quant_ret_bydate.index.get_level_values(0) == 5,'1D'] - df_thisIndex['1D']
+    plotting.plot_cumulative_returns(alpha_index, period="1D")
+    
     plt.show()
     gf.close()
