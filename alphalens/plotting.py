@@ -1049,10 +1049,11 @@ def plot_dataframe_table(table,title,ax=None):
     ax.set_title(title)
     #set_size(5, 1.6, ax)
     ytable = ax.table(table.values, colLabels= table.columns, loc ="center", rowLabels=table.index.values,\
-        colWidths=[0.2] * table.shape[1], cellLoc='center')
+        colWidths=[0.15] * table.shape[1], cellLoc='center')
     for c in range(-1, len(table.columns)):
-            cell = ytable[0, c]
-            cell.set_height(0.05)
+            if c>=0:
+                cell = ytable[0, c]
+                cell.set_height(0.05)
             for r in range(1, len(table.index.values)+1):
                 cell = ytable[r, c]
                 cell.set_height(0.1)
