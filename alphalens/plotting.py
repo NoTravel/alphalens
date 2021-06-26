@@ -163,7 +163,7 @@ def plot_turnover_table(autocorrelation_data, quantile_turnover):
     utils.print_table(auto_corr.apply(lambda x: x.round(3)))
 
 
-def plot_information_table(ic_data):
+def plot_information_table(ic_data, ax = None):
     ic_summary_table = pd.DataFrame()
     ic_summary_table["IC Mean"] = ic_data.mean()
     ic_summary_table["IC Std."] = ic_data.std()
@@ -175,10 +175,14 @@ def plot_information_table(ic_data):
     ic_summary_table["IC Skew"] = stats.skew(ic_data)
     ic_summary_table["IC Kurtosis"] = stats.kurtosis(ic_data)
 
-    print("Information Analysis")
-    utils.print_table(ic_summary_table.apply(lambda x: x.round(3)).T)
+    if ax is None:
+        print("Information Analysis")
+        utils.print_table(ic_summary_table.apply(lambda x: x.round(3)).T)
+    else:
+        plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(3)).T, title="Information Analysis",\
+            ax = ax)
 
-def plot_regression_return_table(regression_return_data):
+def plot_regression_return_table(regression_return_data, ax = None):
     ic_summary_table = pd.DataFrame()
     ic_summary_table["Regression Return Mean"] = regression_return_data.mean()
     ic_summary_table["Regression Return Std."] = regression_return_data.std()
@@ -190,16 +194,24 @@ def plot_regression_return_table(regression_return_data):
     ic_summary_table["Regression Return Skew"] = stats.skew(regression_return_data)
     ic_summary_table["Regression Return Kurtosis"] = stats.kurtosis(regression_return_data)
 
-    print("Regression Return Analysis")
-    utils.print_table(ic_summary_table.apply(lambda x: x.round(5)).T)
+    if ax is None:
+        print("Regression Return Analysis")
+        utils.print_table(ic_summary_table.apply(lambda x: x.round(5)).T)
+    else:
+        plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(5)).T, title="Regression Return Analysis", ax = ax)
 
-def plot_alpha_performance_table(dict_perf):
+
+def plot_alpha_performance_table(dict_perf, ax = None):
     ic_summary_table = pd.DataFrame()
     for key, value in dict_perf.items():
         ic_summary_table[key] = [value]
     
-    print("Alpha Performance Analysis")
-    utils.print_table(ic_summary_table.apply(lambda x: x.round(5)).T)
+    if ax is None:
+        print("Alpha Performance Analysis")
+        utils.print_table(ic_summary_table.apply(lambda x: x.round(5)).T)
+    else:
+        plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(5)).T, \
+            title="Alpha Performance Analysis", ax = ax)
 
 def plot_quantile_statistics_table(factor_data):
     quantile_stats = factor_data.groupby('factor_quantile') \
@@ -1005,4 +1017,43 @@ def plot_events_distribution(events, num_bars=50, ax=None):
            title='Distribution of events in time',
            xlabel='Date')
 
+    return ax
+
+def set_size(w,h, ax=None):
+    """ w, h: width, height in inches 
+    https://stackoverflow.com/questions/44970010/axes-class-set-explicitly-size-width-height-of-axes-in-given-units
+    """
+    if not ax: ax=plt.gca()
+    l = ax.figure.subplotpars.left
+    r = ax.figure.subplotpars.right
+    t = ax.figure.subplotpars.top
+    b = ax.figure.subplotpars.bottom
+    figw = float(w)/(r-l)
+    figh = float(h)/(t-b)
+    ax.figure.set_size_inches(figw, figh)
+
+def plot_dataframe_table(table,title,ax=None):
+    """
+    Plots Table.
+
+    Returns
+    -------
+    ax : matplotlib.Axes
+        The axes that were plotted on.
+    """
+    if ax is None:
+        f, ax = plt.subplots(1, 1, figsize=(8, 2))
+    
+    ax.axis('tight')
+    ax.axis('off')
+    ax.set_title(title)
+    #set_size(5, 1.6, ax)
+    ytable = ax.table(table.values, colLabels= table.columns, loc ="center", rowLabels=table.index.values,\
+        colWidths=[0.2] * table.shape[1], cellLoc='center')
+    for c in range(-1, len(table.columns)):
+            cell = ytable[0, c]
+            cell.set_height(0.05)
+            for r in range(1, len(table.index.values)+1):
+                cell = ytable[r, c]
+                cell.set_height(0.1)
     return ax

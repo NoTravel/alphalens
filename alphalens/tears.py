@@ -787,17 +787,17 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
             False
         )
         factor_data.loc[:,'factor_quantile'] = quantile_data
-
+    
+    vertical_sections = 13
+    gf = GridFigure(rows=vertical_sections, cols=1)
+    
     alpha1 = perf.factor_information_coefficient(factor_data, group_neutral)
-
-    plotting.plot_regression_return_table(alpha1)
+    plotting.plot_regression_return_table(alpha1, ax = gf.next_row())
 
     alpha2 = perf.factor_returns(
         factor_data, long_short, group_neutral
     )
 
-    vertical_sections = 10
-    gf = GridFigure(rows=vertical_sections, cols=1)
 
     title = ("Alpha Portfolio Return(alpha2) " + " (1D Period)")
 
@@ -853,7 +853,7 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
 
     rankic = perf.factor_information_coefficient(factor_data, group_neutral)
 
-    plotting.plot_information_table(rankic)
+    plotting.plot_information_table(rankic, ax = gf.next_row())
 
     plotting.plot_cumulative_returns_by_quantile(
         mean_quant_ret_bydate["1D"], period="1D", ax=gf.next_row()
@@ -866,7 +866,7 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     plotting.plot_simple([1,2,5,10,20], l_icdecay, ax = gf.next_row(), title= "Alpha IC Decay")
 
     dict_perf = perf.alpha_performance(alpha2['1D'])
-    plotting.plot_alpha_performance_table(dict_perf)
+    plotting.plot_alpha_performance_table(dict_perf, ax=gf.next_row())
 
     alpha_index = mean_quant_ret_bydate.loc[mean_quant_ret_bydate.index.get_level_values(0) == num_quantiles,'1D'] - df_thisIndex['1D']
     title = ("First Quantile Average Performance Against Index" + " (1D Period)")
