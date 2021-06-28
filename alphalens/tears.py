@@ -769,6 +769,7 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     by_group : bool
         If True, display graphs separately for each group.
     """
+    dict_result = dict()
     df_thisIndex = index_ret.xs(s_benchmark, level = "asset")
     df_thisIndex = df_thisIndex[df_thisIndex.index.isin(factor_data.index.unique(level='date'))]
     num_quantiles = max(factor_data['factor_quantile'])
@@ -792,7 +793,8 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     pp = PdfPages('Save multiple plots as PDF.pdf')
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
     alpha1 = perf.factor_information_coefficient(factor_data, group_neutral)
-    plotting.plot_regression_return_table(alpha1, ax = ax)
+    ic_summary_table = plotting.plot_regression_return_table(alpha1, ax = ax)
+    dict_result.update(dict(ic_summary_table['1D']))
     pp.savefig(fig)
 
     alpha2 = perf.factor_returns(
@@ -803,9 +805,10 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     title = ("Alpha Portfolio Return(alpha2) " + " (1D Period)")
 
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
-    plotting.plot_cumulative_returns(
+    ax_tmp, factor_returns = plotting.plot_cumulative_returns(
         alpha2["1D"], period="1D", title=title, ax=ax
     )
+    dict_result['AlphaPortfolioFinalReturn(1D)'] = factor_returns[-1]
     pp.savefig(fig)
 
     mean_quant_ret_bydate, std_quant_daily = perf.mean_return_by_quantile(
@@ -836,9 +839,10 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
     # long top 1/10 and short bottom 1/10
-    plotting.plot_cumulative_top_minus_bottom(
+    ax_tmp, top_minus_bottom_returns = plotting.plot_cumulative_top_minus_bottom(
         mean_ret_spread_quant["1D"], period="1D", ax=ax
     )
+    dict_result['TopMinusBottomFinalReturn(1D)'] = top_minus_bottom_returns[-1]
     pp.savefig(fig)
 
     alpha3_positive = perf.factor_returns_positive(factor_data, df_thisIndex)
@@ -847,23 +851,26 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     title = ("Performance Against Index(alpha3) positive" + " (1D Period)")
 
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
-    plotting.plot_cumulative_returns(
+    ax_tmp, factor_returns = plotting.plot_cumulative_returns(
         alpha3_positive["1D"], period="1D", title=title, ax=ax
     )
+    dict_result['PerformanceAgainstIndex(positive)FinalReturn(1D)'] = factor_returns[-1]
     pp.savefig(fig)
 
     title = ("Performance Against Index(alpha3) negative" + " (1D Period)")
 
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
-    plotting.plot_cumulative_returns(
+    ax_tmp, factor_returns = plotting.plot_cumulative_returns(
         alpha3_negative["1D"], period="1D", title=title, ax=ax
     )
+    dict_result['PerformanceAgainstIndex(negative)FinalReturn(1D)'] = factor_returns[-1]
     pp.savefig(fig)
 
     rankic = perf.factor_information_coefficient(factor_data, group_neutral)
 
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
-    plotting.plot_information_table(rankic, ax = ax)
+    ic_summary_table = plotting.plot_information_table(rankic, ax = ax)
+    dict_result.update(dict(ic_summary_table['1D']))
     pp.savefig(fig)
 
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
@@ -872,17 +879,23 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     )
     pp.savefig(fig)
 
-    l_turnover = [perf.alpha_turnover(factor_data, p) for p in [1, 2, 5, 10, 20]]
+    l_delay = [1, 2, 5, 10, 20] 
+    l_turnover = [perf.alpha_turnover(factor_data, p) for p in l_delay]
+    for i in range(len(l_delay)):
+        dict_result['turnover_' + str(l_delay[i])] = l_turnover[i]
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
     plotting.plot_simple([1,2,5,10,20], l_turnover, ax = ax, title= "Alpha Turnover")
     pp.savefig(fig)
 
     l_icdecay = [perf.alpha_icdecay(factor_data, p) for p in [1, 2, 5, 10, 20]]
+    for i in range(len(l_delay)):
+        dict_result['icdecay_' + str(l_delay[i])] = l_icdecay[i]
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
     plotting.plot_simple([1,2,5,10,20], l_icdecay, ax = ax, title= "Alpha IC Decay")
     pp.savefig(fig)
 
     dict_perf = perf.alpha_performance(alpha2['1D'])
+    dict_result.update(dict_perf)
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
     plotting.plot_alpha_performance_table(dict_perf, ax=ax)
     pp.savefig(fig)
@@ -890,9 +903,11 @@ def zt_create_full_tear_sheet(factor_data, index_ret, s_benchmark = "000905.SH",
     alpha_index = mean_quant_ret_bydate.loc[mean_quant_ret_bydate.index.get_level_values(0) == num_quantiles,'1D'] - df_thisIndex['1D']
     title = ("First Quantile Average Performance Against Index" + " (1D Period)")
     fig, ax = plt.subplots(1,1,figsize=(14, 7))
-    plotting.plot_cumulative_returns(alpha_index.xs(num_quantiles, level=0), period="1D", title = title, ax = ax)
+    ax_tmp, factor_returns = plotting.plot_cumulative_returns(alpha_index.xs(num_quantiles, level=0), period="1D", title = title, ax = ax)
+    dict_result['FirstQuantileAverageAgainstIndex'] = factor_returns[-1]
+
     pp.savefig(fig)
 
-    plt.show()
+    #plt.show()
     pp.close()
-    
+    return dict_result

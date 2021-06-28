@@ -181,6 +181,7 @@ def plot_information_table(ic_data, ax = None):
     else:
         plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(3)).T, title="Information Analysis",\
             ax = ax)
+    return ic_summary_table.apply(lambda x: x.round(3)).T
 
 def plot_regression_return_table(regression_return_data, ax = None):
     ic_summary_table = pd.DataFrame()
@@ -199,7 +200,7 @@ def plot_regression_return_table(regression_return_data, ax = None):
         utils.print_table(ic_summary_table.apply(lambda x: x.round(5)).T)
     else:
         plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(5)).T, title="Regression Return Analysis", ax = ax)
-
+    return ic_summary_table.apply(lambda x: x.round(5)).T
 
 def plot_alpha_performance_table(dict_perf, ax = None):
     ic_summary_table = pd.DataFrame()
@@ -212,6 +213,7 @@ def plot_alpha_performance_table(dict_perf, ax = None):
     else:
         plot_dataframe_table(ic_summary_table.apply(lambda x: x.round(5)).T, \
             title="Alpha Performance Analysis", ax = ax)
+    return ic_summary_table.apply(lambda x: x.round(5)).T
 
 def plot_quantile_statistics_table(factor_data):
     quantile_stats = factor_data.groupby('factor_quantile') \
@@ -797,7 +799,7 @@ def plot_cumulative_returns(factor_returns,
            xlabel='')
     ax.axhline(1.0, linestyle='-', color='black', lw=1)
 
-    return ax
+    return ax, factor_returns
 
 
 def plot_cumulative_returns_by_quantile(quantile_returns,
@@ -897,7 +899,7 @@ def plot_cumulative_top_minus_bottom(mean_ret_spread_quant,
            xlabel='')
     ax.axhline(1.0, linestyle='-', color='black', lw=1)
 
-    return ax
+    return ax, top_minus_bottom_returns
 
 def plot_quantile_average_cumulative_return(avg_cumulative_returns,
                                             by_quantile=False,
